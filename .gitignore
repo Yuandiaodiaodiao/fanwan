@@ -1,0 +1,16 @@
+node_modules
+.next
+data/
+*.db
+*.db-journal
+*.db-shm
+*.db-wal
+.env
+.env.*
+!.env.example
+.DS_Store
+logs/
+*.log
+.fanwan/
+.idea/
+.vscode/

@@ -1,0 +1,24 @@
+{
+  "name": "fanwan",
+  "version": "0.1.0",
+  "description": "Agent-first alert & memo platform — scheduled phone alerts, todos, memos. SQLite + bun HTTP API + Next.js UI.",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "server": "bun run server/index.ts",
+    "server:dev": "bun --watch run server/index.ts",
+    "web": "cd web && bun run dev",
+    "web:build": "cd web && bun run build",
+    "web:start": "cd web && bun run start",
+    "install:web": "cd web && bun install",
+    "install:all": "bun install && bun run install:web",
+    "fa": "bun run scripts/fa.ts"
+  },
+  "devDependencies": {
+    "@types/bun": "latest",
+    "typescript": "^5.6.0"
+  },
+  "dependencies": {
+    "dotenv": "^16.4.5"
+  }
+}
