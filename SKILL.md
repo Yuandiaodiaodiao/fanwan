@@ -15,8 +15,39 @@ A local SQLite-backed memo + alert scheduler. Each entry has `content`, optional
 `alert` flag. The server scheduler fires alerts when due. Use it as the
 agent's external memory and notification system.
 
-> First-time setup (deps + .env + Next.js build + service start):
-> see **[INSTALL.md](INSTALL.md)**. After that you only need this file.
+## 0. Bootstrap — make sure the repo is on disk
+
+If you (the agent) received this file in isolation and **don't see the
+`fanwan/` directory in the user's workspace**, you do NOT have access to the
+runtime yet. Do this once, before anything else:
+
+```bash
+# Pick a stable location; the home directory is fine.
+cd ~
+git clone https://github.com/Yuandiaodiaodiao/fanwan.git
+cd fanwan
+```
+
+> Do **not** try to fetch `scripts/fa.ts`, `server/index.ts`, etc. one file
+> at a time over HTTP. The CLI needs `bun install`, `web/` needs a build,
+> and the scheduler needs to run as a long-lived process. Clone the whole repo.
+
+If the user has cloned it elsewhere (e.g. `/path/to/fanwan`), `cd` there
+instead. From here on, all paths in this document and in `INSTALL.md` are
+relative to the repo root. Confirm you are at the right place:
+
+```bash
+ls SKILL.md INSTALL.md package.json scripts/fa.ts   # all four must exist
+```
+
+Then check whether the service has ever been installed on this machine:
+
+```bash
+bun run scripts/service.ts doctor
+```
+
+- All ✓ → skip to "How to know it's running" below.
+- Any ✗ → open **[INSTALL.md](INSTALL.md)** and follow it once.
 
 ## How to know it's running
 

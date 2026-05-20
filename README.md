@@ -10,14 +10,17 @@ local Next.js dashboard to see and edit the same data.
 ## Quick start
 
 ```bash
+git clone https://github.com/Yuandiaodiaodiao/fanwan.git
+cd fanwan
+bun run scripts/service.ts doctor      # checks bun/tmux/lsof/curl/deps/ports
 bun run scripts/service.ts install     # one-time
 bun run scripts/service.ts start       # tmux session: api + web
-bun run fa channel add phone default https://fwalert.com/<uuid>
-bun run fa call "hello from fanwan"    # phone rings
+bun run fa channel add phone default https://your-phone-webhook
+bun run fa remind "电话测试" --at "+10s"
 ```
 
-See **[INSTALL.md](INSTALL.md)** for first-time setup and
-**[SKILL.md](SKILL.md)** for the full CLI / API.
+See **[INSTALL.md](INSTALL.md)** for first-time setup (clean machine, nothing
+preinstalled) and **[SKILL.md](SKILL.md)** for the full CLI / API contract.
 
 ## Architecture
 

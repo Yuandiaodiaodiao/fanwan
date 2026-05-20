@@ -187,6 +187,16 @@ async function cmdLogs() {
 async function cmdDoctor() {
   const checks: Array<{ name: string; ok: boolean; detail: string; fix?: string }> = [];
 
+  // git (needed to clone / pull the repo)
+  {
+    const r = shOut("git", ["--version"]);
+    checks.push({
+      name: "git",
+      ok: r.code === 0,
+      detail: r.code === 0 ? r.out.trim() : "not found",
+      fix: 'macOS: xcode-select --install     Debian/Ubuntu: sudo apt install -y git',
+    });
+  }
   // bun
   {
     const r = shOut("bun", ["--version"]);
