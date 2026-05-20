@@ -29,12 +29,19 @@ async function readJson(req: Request): Promise<any> {
   try { return await req.json(); } catch { return {}; }
 }
 
+/**
+ * Parse an incoming timestamp. Contract:
+ *   - Must be ISO 8601 (e.g. "2026-05-20T15:00:00+08:00" or "2026-05-20T07:00:00Z").
+ *   - If no timezone designator is present, the value is treated as UTC.
+ *     (Clients should normalize before sending — the bun `fa` CLI does this.)
+ *   - Stored as "YYYY-MM-DD HH:MM:SS" UTC inside SQLite.
+ */
 function parseIso(v: unknown): string | null {
   if (v == null || v === "") return null;
-  if (typeof v !== "string") throw new Error("scheduled_at must be ISO string");
+  if (typeof v !== "string") throw new Error("scheduled_at must be an ISO 8601 string");
   const d = new Date(v);
-  if (isNaN(d.getTime())) throw new Error(`invalid date: ${v}`);
-  return d.toISOString().replace("T", " ").replace("Z", "").split(".")[0]; // sqlite-friendly UTC "YYYY-MM-DD HH:MM:SS"
+  if (isNaN(d.getTime())) throw new Error(`invalid date: ${v} (expected ISO 8601, e.g. 2026-05-20T15:00:00+08:00)`);
+  return d.toISOString().replace("T", " ").replace("Z", "").split(".")[0];
 }
 
 const routes: Array<{

@@ -67,10 +67,48 @@ Service control (separate from the CLI):
 | `bun run scripts/service.ts start \| stop \| restart \| status` | Process lifecycle. |
 | `bun run scripts/service.ts logs api \| web` | `tail -f` the chosen log. |
 
-Timestamps: pass anything `new Date()` parses — `"2026-05-20 09:00"`,
-`"2026-05-20T09:00:00+08:00"`, `"2026-05-20T01:00:00Z"`. They are stored in UTC.
-
 JSON goes to stdout, a human summary to stderr. Pipe to `jq` for structured output.
+
+## Time format contract (read carefully)
+
+Mixing timezones silently is the #1 bug source for scheduled alerts. The
+contract is intentionally explicit:
+
+| Layer | Format |
+|---|---|
+| **SQLite storage** | UTC, `"YYYY-MM-DD HH:MM:SS"`. Never seen by clients. |
+| **API request** (`POST/PATCH` body `scheduled_at`) | ISO 8601 string. **Always include a timezone designator** (`Z` or `±HH:MM`). If absent, the server treats it as UTC. |
+| **API response** | ISO 8601 UTC with trailing `Z`, e.g. `"2026-05-20T07:00:00Z"`. Always UTC, always explicit. |
+| **CLI `fa --at`** | Accepts any ISO string. If you pass a **bare** timestamp like `"2026-05-20 15:00"`, the CLI auto-appends `+08:00` (Asia/Shanghai) before sending. Override per-call by writing the suffix yourself, or globally with `FANWAN_DEFAULT_TZ`. |
+| **CLI stderr summary** | Renders times in `FANWAN_DISPLAY_TZ` (default `Asia/Shanghai`), suffixed `+08`. JSON to stdout is still raw UTC. |
+| **Web UI** | Both input and display are pinned to UTC+8 regardless of browser locale. The `datetime-local` field is interpreted as Shanghai wall-clock; displayed times have a `(UTC+8)` tag. |
+
+### Examples
+
+```bash
+# bare → CLI normalizes to +08:00, stored as 2026-05-20 07:00:00 UTC
+bun run fa add "下午 3 点会议" --at "2026-05-20 15:00" --channel default --alert
+
+# explicit UTC
+bun run fa add "0700 UTC ping" --at "2026-05-20T07:00:00Z" --channel default --alert
+
+# explicit other zone (e.g. New York EDT)
+bun run fa add "NY morning sync" --at "2026-05-20T09:00:00-04:00" --channel default --alert
+```
+
+After creation, the response always shows UTC:
+
+```json
+{ "scheduled_at": "2026-05-20T07:00:00Z", ... }
+```
+
+The web UI will render this row as `2026-05-20 15:00 (UTC+8)`.
+
+### Rule of thumb for agents
+
+- When the user says "下午 3 点" / "明天早上九点" / any local Chinese time → pass to `--at` as a bare string. The CLI handles +08:00.
+- When the user gives explicit UTC or another zone → pass it verbatim with the suffix.
+- Never construct timestamps by string-cat-ing fragments; let `Date()` or the CLI normalize.
 
 ## Common recipes
 

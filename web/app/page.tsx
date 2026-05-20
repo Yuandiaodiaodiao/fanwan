@@ -25,6 +25,45 @@ const STATUS_CN: Record<Entry["status"], string> = {
   failed: "失败",
 };
 
+const DISPLAY_TZ = "Asia/Shanghai";
+const DISPLAY_TZ_OFFSET = "+08:00";
+
+/** Format a UTC ISO string as "YYYY-MM-DD HH:mm" in Shanghai time. */
+function fmtShanghai(iso: string | null): string {
+  if (!iso) return "—";
+  const d = new Date(iso);
+  if (isNaN(d.getTime())) return iso;
+  const parts = new Intl.DateTimeFormat("zh-CN", {
+    timeZone: DISPLAY_TZ, year: "numeric", month: "2-digit", day: "2-digit",
+    hour: "2-digit", minute: "2-digit", hour12: false,
+  }).formatToParts(d).reduce<Record<string, string>>((a, p) => (a[p.type] = p.value, a), {});
+  return `${parts.year}-${parts.month}-${parts.day} ${parts.hour}:${parts.minute}`;
+}
+
+/**
+ * <input type="datetime-local"> gives a naive "YYYY-MM-DDTHH:mm" with no
+ * timezone — the browser would treat it as local time. We force Shanghai by
+ * appending +08:00 explicitly so a user in Tokyo and a user in Berlin both
+ * see and submit the same wall-clock time.
+ */
+function shanghaiLocalToIso(local: string): string {
+  if (!local) return "";
+  const s = local.length === 16 ? `${local}:00` : local;
+  return new Date(`${s}${DISPLAY_TZ_OFFSET}`).toISOString();
+}
+
+/** Convert a server UTC ISO into "YYYY-MM-DDTHH:mm" for datetime-local input pre-fill. */
+function isoToShanghaiLocal(iso: string | null): string {
+  if (!iso) return "";
+  const d = new Date(iso);
+  if (isNaN(d.getTime())) return "";
+  const parts = new Intl.DateTimeFormat("en-CA", {
+    timeZone: DISPLAY_TZ, year: "numeric", month: "2-digit", day: "2-digit",
+    hour: "2-digit", minute: "2-digit", hour12: false,
+  }).formatToParts(d).reduce<Record<string, string>>((a, p) => (a[p.type] = p.value, a), {});
+  return `${parts.year}-${parts.month}-${parts.day}T${parts.hour}:${parts.minute}`;
+}
+
 async function api<T>(method: string, path: string, body?: unknown): Promise<T> {
   const res = await fetch(`${API}${path}`, {
     method,
@@ -35,11 +74,6 @@ async function api<T>(method: string, path: string, body?: unknown): Promise<T> 
   return res.json() as Promise<T>;
 }
 
-function toIsoLocal(input: string): string {
-  // datetime-local gives "YYYY-MM-DDTHH:mm"; treat as local and convert to ISO UTC.
-  if (!input) return "";
-  return new Date(input).toISOString();
-}
 
 export default function Home() {
   const [entries, setEntries] = useState<Entry[]>([]);
@@ -88,7 +122,7 @@ export default function Home() {
     try {
       await api("POST", "/api/entries", {
         content,
-        scheduled_at: at ? toIsoLocal(at) : null,
+        scheduled_at: at ? shanghaiLocalToIso(at) : null,
         channel_id: channelId ? Number(channelId) : null,
         alert: alertOn,
       });
@@ -151,7 +185,7 @@ export default function Home() {
             </div>
             <div className="row">
               <div className="field" style={{ flex: 2 }}>
-                <label>时间（可选）</label>
+                <label>时间（可选，按 UTC+8 解析）</label>
                 <input type="datetime-local" value={at} onChange={(e) => setAt(e.target.value)} />
               </div>
               <div className="field" style={{ flex: 1 }}>
@@ -203,7 +237,7 @@ export default function Home() {
                       <div className="entry-meta">
                         <span className={`status ${e.status}`}>{STATUS_CN[e.status]}</span>
                         {" · "}
-                        {e.scheduled_at ? <>时间 <b>{e.scheduled_at}</b> UTC</> : "无时间"}
+                        {e.scheduled_at ? <>时间 <b>{fmtShanghai(e.scheduled_at)}</b> (UTC+8)</> : "无时间"}
                         {ch ? <> · 渠道 <b>{ch.name}</b></> : ""}
                         {e.tags ? <> · <i>{e.tags}</i></> : ""}
                       </div>

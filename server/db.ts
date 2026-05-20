@@ -75,8 +75,23 @@ interface EventRow {
   triggered_at: string;
 }
 
+/**
+ * Convert SQLite's "YYYY-MM-DD HH:MM:SS" (always UTC by convention) to
+ * canonical ISO 8601 with `Z` so API consumers never have to guess.
+ */
+function sqliteToIso(s: string | null): string | null {
+  if (!s) return null;
+  if (s.includes("T") && (s.endsWith("Z") || /[+-]\d{2}:?\d{2}$/.test(s))) return s;
+  return s.replace(" ", "T") + "Z";
+}
+
 function rowToChannel(r: ChannelRow): Channel {
-  return { ...r, type: r.type as Channel["type"], config: JSON.parse(r.config) };
+  return {
+    ...r,
+    type: r.type as Channel["type"],
+    config: JSON.parse(r.config),
+    created_at: sqliteToIso(r.created_at) as string,
+  };
 }
 
 function rowToEntry(r: EntryRow): Entry {
@@ -84,11 +99,18 @@ function rowToEntry(r: EntryRow): Entry {
     ...r,
     alert: !!r.alert,
     status: r.status as Entry["status"],
+    scheduled_at: sqliteToIso(r.scheduled_at),
+    created_at: sqliteToIso(r.created_at) as string,
+    updated_at: sqliteToIso(r.updated_at) as string,
   };
 }
 
 function rowToEvent(r: EventRow): AlertEvent {
-  return { ...r, status: r.status as AlertEvent["status"] };
+  return {
+    ...r,
+    status: r.status as AlertEvent["status"],
+    triggered_at: sqliteToIso(r.triggered_at) as string,
+  };
 }
 
 // ---------- channels ----------

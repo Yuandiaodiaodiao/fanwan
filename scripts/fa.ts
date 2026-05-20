@@ -39,6 +39,26 @@ const PORT = process.env.SERVER_PORT ?? "51737";
 const BASE = process.env.API_BASE_URL ?? `http://localhost:${PORT}`;
 const TOKEN = process.env.API_TOKEN || "";
 
+/**
+ * Default timezone for naive timestamps passed via --at.
+ * Fanwan assumes the user / agent is in UTC+8 (Asia/Shanghai). To send a
+ * different zone, pass an explicit offset, e.g.
+ *   --at "2026-05-20T15:00:00Z"        (UTC)
+ *   --at "2026-05-20T08:00:00-05:00"   (Eastern Time)
+ */
+const DEFAULT_TZ_OFFSET = process.env.FANWAN_DEFAULT_TZ ?? "+08:00";
+
+/**
+ * Normalize an `--at` value so the server receives an unambiguous ISO 8601
+ * string. If the user already wrote a Z or ±HH:MM suffix we keep it.
+ * Otherwise the bare string is treated as DEFAULT_TZ_OFFSET local time.
+ */
+function normalizeTs(input: string): string {
+  if (/Z$/i.test(input) || /[+-]\d{2}:?\d{2}$/.test(input)) return input;
+  const s = input.includes("T") ? input : input.replace(" ", "T");
+  return `${s}${DEFAULT_TZ_OFFSET}`;
+}
+
 async function api(method: string, path: string, body?: unknown): Promise<any> {
   const headers: Record<string, string> = { "content-type": "application/json" };
   if (TOKEN) headers.authorization = `Bearer ${TOKEN}`;
@@ -86,10 +106,21 @@ function print(obj: unknown) {
   process.stdout.write(JSON.stringify(obj, null, 2) + "\n");
 }
 
+const DISPLAY_TZ = process.env.FANWAN_DISPLAY_TZ ?? "Asia/Shanghai";
+function fmtTs(iso: string | null): string {
+  if (!iso) return "—";
+  try {
+    const d = new Date(iso);
+    const parts = new Intl.DateTimeFormat("zh-CN", {
+      timeZone: DISPLAY_TZ, year: "numeric", month: "2-digit", day: "2-digit",
+      hour: "2-digit", minute: "2-digit", hour12: false,
+    }).formatToParts(d).reduce<Record<string, string>>((acc, p) => (acc[p.type] = p.value, acc), {});
+    return `${parts.year}-${parts.month}-${parts.day} ${parts.hour}:${parts.minute} +08`;
+  } catch { return iso; }
+}
 function fmtEntry(e: any): string {
-  const when = e.scheduled_at ? e.scheduled_at : "—";
   const ring = e.alert ? "🔔" : "·";
-  return `#${e.id} [${e.status}] ${ring} ${when}  ${e.content}`;
+  return `#${e.id} [${e.status}] ${ring} ${fmtTs(e.scheduled_at)}  ${e.content}`;
 }
 
 const [cmd, ...rest] = process.argv.slice(2);
@@ -130,7 +161,7 @@ Server: ${BASE}`);
       const content = args._[0];
       if (!content) { console.error("usage: fa add <content> [...]"); process.exit(2); }
       const body: any = { content };
-      if (args.at) body.scheduled_at = String(args.at);
+      if (args.at) body.scheduled_at = normalizeTs(String(args.at));
       if (args["channel-id"]) body.channel_id = Number(args["channel-id"]);
       if (args.channel) body.channel = String(args.channel);
       if (args.alert) body.alert = true;
@@ -168,7 +199,7 @@ Server: ${BASE}`);
       if (!id) { console.error("usage: fa edit <id> [...]"); process.exit(2); }
       const body: any = {};
       if (args.content) body.content = String(args.content);
-      if (args.at !== undefined) body.scheduled_at = args.at === "null" || args.at === "" ? null : String(args.at);
+      if (args.at !== undefined) body.scheduled_at = args.at === "null" || args.at === "" ? null : normalizeTs(String(args.at));
       if (args.channel !== undefined) body.channel = args.channel === "null" ? null : String(args.channel);
       if (args["channel-id"] !== undefined) body.channel_id = args["channel-id"] === "null" ? null : Number(args["channel-id"]);
       if (args.alert) body.alert = true;
