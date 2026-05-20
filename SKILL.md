@@ -38,11 +38,71 @@ to reinstall, or on a fresh machine.
 
 ## The CLI
 
-All operations go through one bun script. Use it instead of writing curl by hand.
+All operations go through one bun script.
 
 ```bash
 bun run fa <command> [args...]
 ```
+
+### `fa remind` — the recommended agent entry point
+
+For "schedule a phone alert" — the most common agent task — use `remind`.
+It bundles time parsing, past-time rejection, server-health check, channel
+resolution, creation, and read-back into one call with a **stable JSON
+envelope**. The agent only needs to inspect `.ok`.
+
+```bash
+bun run fa remind "<content>" --at "<time>" [--channel <name>] [--tags csv]
+```
+
+`<time>` accepts:
+
+| Shape | Meaning |
+|---|---|
+| `HH:MM` | Today at HH:MM in UTC+8; rolls to tomorrow if already past. |
+| `+30m` / `+2h` / `+45s` / `+1d` | Relative to now. |
+| `今天 09:00` / `today 09:00` | Today at 09:00 UTC+8. |
+| `明天 09:00` / `tomorrow 09:00` | Tomorrow at 09:00 UTC+8. |
+| `"YYYY-MM-DD HH:MM"` | Bare date-time; treated as UTC+8. |
+| ISO 8601 with TZ | Passed through, e.g. `2026-05-20T07:00:00Z`. |
+
+**Success envelope** (stdout, exit 0):
+
+```json
+{
+  "ok": true,
+  "action": "remind",
+  "entry": { "id": 5, "content": "...", "scheduled_at": "...", ... },
+  "channel": { "id": 1, "name": "default", "type": "phone" },
+  "scheduled_in_seconds": 1800,
+  "display": { "local": "2026-05-20 17:37", "utc": "2026-05-20T09:37:24Z", "tz": "Asia/Shanghai" }
+}
+```
+
+**Error envelope** (stdout, exit 1) — same shape, easy to branch on:
+
+```json
+{
+  "ok": false,
+  "action": "remind",
+  "error_code": "no_channel",
+  "error": "no phone channel configured",
+  "remedy": "fa channel add phone default <webhook_url>"
+}
+```
+
+`error_code` is one of:
+`missing_content` · `missing_at` · `bad_time` · `past_time` · `server_down` ·
+`no_channel` · `unknown_channel` · `create_failed` · `read_failed`.
+
+An agent's loop becomes trivial:
+
+```bash
+out=$(bun run fa remind "$msg" --at "$when")
+if echo "$out" | jq -e .ok >/dev/null; then echo "✓"; else echo "$out" | jq -r .remedy; fi
+```
+
+### Low-level commands
 
 | Command | Purpose |
 |---|---|
