@@ -3,8 +3,16 @@
 > 这份文档只在**第一次**部署，或 `SKILL.md` 里的健康检查报错时读一遍。
 > 安装完成后，所有日常操作只看 `SKILL.md` 即可。
 >
-> Agent 读这份文档时，请按章节顺序执行，每一步都先跑命令再判断输出。
-> 用户的电脑可能什么都没装；不要假设任何工具默认存在。
+> **给 agent 的总体提示**：
+> - 按章节顺序执行，每一步都先跑命令再判断输出，不要并行执行后续步骤。
+> - 用户的电脑可能什么都没装；不要假设任何工具默认存在。
+> - 文档里给出的安装命令是**示例**，覆盖 Debian/Ubuntu、Fedora/RHEL、Arch、
+>   Alpine、openSUSE、macOS 等常见环境。如果你在的环境不是这些（比如
+>   NixOS、CentOS Stream、Termux、容器镜像、CI runner 等），请：
+>   1. 先用 `command -v <pm>` 或 `cat /etc/os-release` 探测包管理器；
+>   2. 用对应包管理器查询/安装同名包（绝大多数包名都叫 `git` / `tmux` / `lsof` / `curl`）；
+>   3. 探测不到包管理器或权限不足时，停下来告诉用户当前发行版 + 缺失工具，让他确认安装方式。
+> - 不要因为某条示例命令在你的发行版不可用就报错退出 — 改用自己探测出的正确命令继续。
 
 ---
 
@@ -21,11 +29,13 @@ git --version
 # 期望：git version 2.x
 ```
 
-如缺：
-
-- macOS：`xcode-select --install`（或 `brew install git`）
-- Debian/Ubuntu：`sudo apt install -y git`
-- Fedora：`sudo dnf install -y git`
+> **给 agent 的提示**：如果 `git` 不存在，请先**探测本机的包管理器**再决定安装命令。
+> 提示用：`command -v apt apt-get dnf yum pacman zypper apk brew port` 看哪个可用，
+> 也可以读 `/etc/os-release` 的 `ID=` 字段。常见对应：
+> Debian/Ubuntu → `sudo apt install -y git`，Fedora/RHEL → `sudo dnf install -y git`，
+> Arch → `sudo pacman -S --noconfirm git`，Alpine → `sudo apk add git`，
+> openSUSE → `sudo zypper install -y git`，macOS → `xcode-select --install` 或 `brew install git`。
+> 不要硬套；如果都没有，告诉用户手动安装 git 后再继续。
 
 然后 clone（位置随意，主目录最省心）：
 
@@ -46,18 +56,33 @@ ls SKILL.md INSTALL.md package.json scripts/fa.ts
 
 ---
 
-## 1. 操作系统判断
+## 1. 操作系统与包管理器判断
 
-支持 macOS 与 Linux。先确认：
+支持 macOS 与任意 Linux 发行版。先采集环境信息：
 
 ```bash
-uname -s
-# 期望：Darwin (macOS)  或  Linux
+uname -s                           # Darwin / Linux
+cat /etc/os-release 2>/dev/null    # Linux 下读发行版 ID
+command -v apt apt-get dnf yum pacman zypper apk brew port 2>/dev/null
 ```
 
-- 如果是 **Darwin** → 走 macOS 路线（用 Homebrew 装依赖）。
-- 如果是 **Linux** → 用 apt / dnf / pacman。
-- Windows：本系统不直接支持，请用 WSL2 后按 Linux 流程走。
+> **给 agent 的提示**：把这三条命令的输出都看一眼，决定后续用哪个包管理器：
+>
+> | 探测到的命令 | 典型系统 | 安装语法示例 |
+> |---|---|---|
+> | `apt` / `apt-get` | Debian / Ubuntu / Mint / WSL | `sudo apt install -y <pkg>` |
+> | `dnf` / `yum` | Fedora / RHEL / CentOS Stream / Rocky | `sudo dnf install -y <pkg>` |
+> | `pacman` | Arch / Manjaro | `sudo pacman -S --noconfirm <pkg>` |
+> | `zypper` | openSUSE | `sudo zypper install -y <pkg>` |
+> | `apk` | Alpine / 一些容器镜像 | `sudo apk add <pkg>` |
+> | `brew` | macOS (Homebrew) | `brew install <pkg>` |
+> | `port` | macOS (MacPorts) | `sudo port install <pkg>` |
+>
+> 都探测不到时，看 `/etc/os-release` 的 `ID=` 字段：
+> NixOS 用 `nix-env -iA nixpkgs.<pkg>` 或修改 configuration.nix；
+> Termux 用 `pkg install <pkg>`；其他情况请告诉用户后停下来。
+>
+> Windows：本系统不直接支持，请用 WSL2 后按 Linux 流程走。
 
 ---
 
@@ -110,18 +135,15 @@ tmux -V
 # 期望：tmux 3.x 之类
 ```
 
-如果没有：
+> **给 agent 的提示**：缺 tmux 时，先按 §0 的方法探测当前系统的包管理器，
+> 然后用它安装 `tmux`。常见包名都是 `tmux`，命令形式与 §0 装 git 时完全一致
+> （只是包名换成 `tmux`）。如果是 macOS 但没有 Homebrew，可以先装一遍 Homebrew：
+>
+> ```bash
+> /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
+> ```
 
-- **macOS**：先装 Homebrew（如果没有）
-  ```bash
-  /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
-  brew install tmux
-  ```
-- **Debian / Ubuntu**：`sudo apt update && sudo apt install -y tmux`
-- **Fedora / RHEL**：`sudo dnf install -y tmux`
-- **Arch**：`sudo pacman -S tmux`
-
-没有 tmux 也能跑（自动降级为 `nohup`），但是日志查看和重启会麻烦一些。
+没有 tmux 也能跑（自动降级为 `nohup`），但日志查看和重启会麻烦一些。
 
 ---
 
@@ -132,10 +154,9 @@ lsof -v 2>&1 | head -1     # 期望有版本输出（lsof 即使 -v 失败也算
 curl --version | head -1   # 期望 curl 7.x / 8.x
 ```
 
-如缺：
-
-- **macOS**：系统自带，应当都有；若没有就 `brew install lsof curl`
-- **Debian / Ubuntu**：`sudo apt install -y lsof curl`
+> **给 agent 的提示**：如果任一缺失，用 §0 探测到的包管理器安装。
+> 包名通常就是 `lsof` 和 `curl`。极简发行版（Alpine 等）这两个工具都不预装。
+> macOS 通常自带；缺失时用 `brew install lsof curl`。
 
 ---
 
